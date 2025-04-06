@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    <title>Życie Juliusza Cezara</title>
+    <style>
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+        #header {
+            padding: 10px;
+            background: #2c3e50;
+            color: white;
+            text-align: center;
+        }
+        #container {
+            display: flex;
+            height: calc(100% - 120px);
+        }
+        #map {
+            width: 70%;
+            height: 100%;
+        }
+        #event-panel {
+            width: 30%;
+            height: 100%;
+            overflow-y: auto;
+            padding: 10px;
+            box-sizing: border-box;
+            border-left: 1px solid #ddd;
+            background: #f9f9f9;
+        }
+        #slider-container {
+            padding: 15px;
+            background: #ecf0f1;
+            text-align: center;
+        }
+        #year-slider {
+            width: 80%;
+        }
+        #current-year {
+            font-weight: bold;
+            margin: 0 10px;
+        }
+        .event-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        .event-item:hover {
+            background-color: #e6f7ff;
+        }
+        .event-year {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .event-city {
+            color: #7f8c8d;
+            font-size: 0.9em;
+        }
+        .event-desc {
+            color: #34495e;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+        .active-event {
+            background-color: #d4e6f1;
+            border-left: 4px solid #2980b9;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/css/bootstrap.min.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.2.0/css/all.min.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.css"/>
+</head>
+<body>
+    <div id="header">
+        <h1>Juliusz Cezar</h1>
+    </div>
+    
+    <div id="slider-container">
+        <input type="range" id="year-slider" min="0" max="58" value="0" step="1">
+        <span id="current-year">100 p.n.e.</span>
+    </div>
+    
+    <div id="container">
+        <div id="map"></div>
+        <div id="event-panel"></div>
+    </div>
+
+    <script>
+        // Full list of events in UTF-8 encoding
+        const events = [
+            {year: "100 p.n.e.", location: [41.9028, 12.4964], city: "Rzym", desc: "Urodziny Gajusza Juliusza Cezara"},
+            {year: "97 p.n.e.", location: [41.9028, 12.4964], city: "Rzym", desc: "Dzieciństwo w rodzinie patrycjuszowskiej"},
+            {year: "95 p.n.e.", location: [41.9028, 12.4964], city: "Rzym", desc: "Wczesna edukacja w domu rodzinnym"},
+            {year: "90 p.n.e.", location: [41.9028, 12.4964], city: "Rzym", desc: "Śmierć ojca - Gajusza Juliusza Cezara Starszego"},
+            {year: "86 p.n.e.", location: [41.9028, 12.4964], city: "Rzym", desc: "Ślub z Kornelią, córką Cynny"},
+            {year: "85 p.n.e.", location: [41.9028, 12.4964], city: "Rzym", desc: "Pierwsze wystąpienie publiczne jako młody orator"},
+            {year: "84 p.n.e.", location: [41.9028, 12.4964], city: "Rzym", desc: "Nominacja na Flamen Dialis (kapłana Jowisza)"},
+            {year: "83 p.n.e.", location: [41.9028, 12.4964], city: "Rzym", desc: "Konflikt z Sullą, utrata majątku i kapłaństwa"},
+            {year: "82 p.n.e.", location: [39.9334, 32.8597], city: "Azja Mniejsza", desc: "Ucieczka przed proskrypcjami Sulli, początek służby wojskowej"},
+            {year: "81 p.n.e.", location: [37.8667, 34.6000], city: "Cilicia / Bitynia", desc: "Służba wojskowa, misja dyplomatyczna do króla Nikomedesa IV"},
+            {year: "80 p.n.e.", location: [38.4189, 27.1287], city: "Mitylena (Lesbos)", desc: "Odznaczenie corona civica za odwagę podczas oblężenia Mityleny"},
+            {year: "78 p.n.e.", location: [41.9028, 12.4964], city: "Rzym", desc: "Powrót do Rzymu po śmierci Sulli"},
+            {year: "77 p.n.e.", location: [41.9028, 12.4964], city: "Rzym", desc: "Rozpoczęcie kariery prawniczej, oskarżenie Gnejusza Korneliusza Dolabelli"},
+            {year: "76 p.n.e.", location: [41.9028, 12.4964], city: "Rzym", desc: "Oskarżenie Gajusza Antoniusza Hybrydy"},
+            {year: "75 p.n.e.", location: [37.0000, 27.0000], city: "Morze Egejskie", desc: "Porwanie przez piratów w drodze na Rodos"},
+            {year: "74 p.n.e.", location: [39.9334, 32.8597], city: "Azja Mniejsza", desc: "Po uwolnieniu, organizuje flotę i ściga piratów"},
+            {year: "73 p.n.e.", location: [41.9028, 12.4964], city: "Rzym", desc: "Wybór na pontyfika (członka kolegium kapłańskiego)"},
+            {year: "70 p.n.e.", location: [37.8833, -4.7667], city: "Hiszpania Dalsza", desc: "Kwestura w Hiszpanii Dalszej"},
+            {year: "69 p.n.e.", location: [41.9028, 12.4964], city: "Rzym", desc: "Śmierć ciotki Julii (wdowy po Mariuszu) i żony Kornelii, wygłoszenie mów pogrzebowych"},
+            {year: "68/67 p.n.e.", location: [41.9028, 12.4964], city: "Rzym", desc: "Małżeństwo z Pompeją (wnuczką Sulli)"},
+            {year: "65 p.n.e.", location: [41.9028, 12.4964], city: "Rzym", desc: "Edylat kurulny - organizacja wspaniałych igrzysk"},
+            {year: "63 p.n.e.", location: [41.9028, 12.4964], city: "Rzym", desc: "Wybór na Najwyższego Kapłana (Pontifex Maximus), udział w debacie senackiej ws. spisku Katyliny"},
+            {year: "62 p.n.e.", location: [41.9028, 12.4964], city: "Rzym", desc: "Pretura; skandal z Klodiuszem Pulcherem podczas obrzędów Dobrej Bogini (Bona Dea)"},
+            {year: "61 p.n.e.", location: [41.9028, 12.4964], city: "Rzym", desc: "Rozwód z Pompeją"},
+            {year: "61-60 p.n.e.", location: [37.8833, -4.7667], city: "Hiszpania Dalsza", desc: "Propretura (zarząd prowincją), udane kampanie militarne"},
+            {year: "60 p.n.e.", location: [41.9028, 12.4964], city: "Rzym", desc: "Powrót do Rzymu, rezygnacja z triumfu na rzecz kandydowania na konsula, zawiązanie I Triumwiratu (z Pompejuszem i Krassusem)"},
+            {year: "59 p.n.e.", location: [41.9028, 12.4964], city: "Rzym", desc: "Konsulat; przepchnięcie ustaw (m.in. agrarnej), małżeństwo z Kalpurnią, wydanie córki Julii za Pompejusza"},
+            {year: "58 p.n.e.", location: [46.2044, 6.1432], city: "Genewa", desc: "Początek wojen galijskich - starcie z Helwetami pod Genewą"},
+            {year: "58 p.n.e.", location: [47.0458, 4.7244], city: "Bibracte", desc: "Zwycięstwo nad Helwetami pod Bibracte"},
+            {year: "58 p.n.e.", location: [47.8000, 7.0000], city: "Wogezy", desc: "Zwycięstwo nad Germanami (Ariowistem) w Wogezach"},
+            {year: "57 p.n.e.", location: [50.4000, 3.9667], city: "Sabis", desc: "Bitwa nad rzeką Sabis (Sambre) przeciwko Nerwiom"},
+            {year: "57 p.n.e.", location: [50.7797, 5.4667], city: "Atuatuca", desc: "Podbój Atuatuków"},
+            {year: "56 p.n.e.", location: [47.6572, -2.7600], city: "Zat. Morbihan", desc: "Kampania przeciwko Wenetom (bitwa morska w zatoce Morbihan)"},
+            {year: "56 p.n.e.", location: [43.8447, 10.5050], city: "Luca", desc: "Odnowienie triumwiratu na spotkaniu w Lukce"},
+            {year: "55 p.n.e.", location: [50.7375, 7.0981], city: "Ren", desc: "Budowa mostu na Renie, krótka wyprawa przeciw Germanom"},
+            {year: "55 p.n.e.", location: [51.1283, 1.3117], city: "Britannia", desc: "Pierwsza, rekonesansowa wyprawa do Brytanii"},
+            {year: "54 p.n.e.", location: [51.2750, 1.0872], city: "Britannia", desc: "Druga, większa wyprawa do Brytanii, starcia z Kassywelaunem"},
+            {year: "54 p.n.e.", location: [41.9028, 12.4964], city: "Rzym", desc: "Śmierć córki Julii, żony Pompejusza (osłabienie więzi w triumwiracie)"},
+            {year: "54/53 p.n.e.", location: [50.6000, 5.8000], city: "Płn.-Wsch. Galia", desc: "Powstanie Eburonów pod wodzą Ambioriksa, zniszczenie legionu"},
+            {year: "53 p.n.e.", location: [36.8667, 39.0167], city: "Carrhae", desc: "Śmierć Krassusa w bitwie pod Carrhae (koniec I Triumwiratu)"},
+            {year: "53 p.n.e.", location: [48.8566, 2.3522], city: "Galia", desc: "Pacyfikacja powstań, druga przeprawa przez Ren"},
+            {year: "52 p.n.e.", location: [47.0833, 2.4000], city: "Avaricum", desc: "Zdobycie Avaricum (Bourges)"},
+            {year: "52 p.n.e.", location: [45.7833, 3.0833], city: "Gergowia", desc: "Nieudane oblężenie Gergowii, porażka Cezara"},
+            {year: "52 p.n.e.", location: [47.5333, 4.2833], city: "Alezja", desc: "Oblężenie Alezji, decydujące zwycięstwo nad Wercyngetoryksem i zjednoczonymi Galami"},
+            {year: "51-50 p.n.e.", location: [48.8566, 2.3522], city: "Galia", desc: "Ostateczna pacyfikacja Galii, organizacja prowincji"},
+            {year: "50 p.n.e.", location: [41.9028, 12.4964], city: "Rzym", desc: "Narastający konflikt polityczny z senatem i Pompejuszem"},
+            {year: "49 p.n.e. (10 Sty)", location: [44.1941, 12.2751], city: "Rubikon", desc: "'Alea iacta est' - Przekroczenie Rubikonu, początek wojny domowej"},
+            {year: "49 p.n.e.", location: [41.9028, 12.4964], city: "Rzym / Italia", desc: "Szybki marsz na Rzym, opanowanie Italii"},
+            {year: "49 p.n.e.", location: [41.6167, 0.6333], city: "Ilerda (Hiszpania)", desc: "Kampania w Hiszpanii, pokonanie pompejańskich legatów"},
+            {year: "48 p.n.e.", location: [41.3300, 19.4833], city: "Dyrrachium", desc: "Oblężenie Dyrrachium, taktyczna porażka Cezara"},
+            {year: "48 p.n.e. (9 Sie)", location: [39.5500, 22.4167], city: "Farsalos", desc: "Decydujące zwycięstwo nad Pompejuszem pod Farsalos"},
+            {year: "48 p.n.e.", location: [31.2001, 29.9187], city: "Aleksandria", desc: "Pogoń za Pompejuszem do Egiptu; śmierć Pompejusza; początek wojny aleksandryjskiej; romans z Kleopatrą VII"},
+            {year: "47 p.n.e.", location: [31.2001, 29.9187], city: "Aleksandria", desc: "Zakończenie wojny aleksandryjskiej, osadzenie Kleopatry na tronie"},
+            {year: "47 p.n.e. (2 Sie)", location: [40.3000, 36.5500], city: "Zela (Pont)", desc: "Błyskawiczne zwycięstwo nad Farnakesem II ('Veni, vidi, vici')"},
+            {year: "47 p.n.e.", location: [41.9028, 12.4964], city: "Rzym", desc: "Powrót do Rzymu, uspokojenie buntów żołnierzy"},
+            {year: "46 p.n.e. (6 Kwi)", location: [35.8333, 10.6333], city: "Thapsus (Afryka)", desc: "Zwycięstwo nad resztkami pompejańczyków (Katon, Scypion) pod Thapsus"},
+            {year: "46 p.n.e.", location: [41.9028, 12.4964], city: "Rzym", desc: "Cztery triumfy (Galia, Egipt, Pont, Afryka), mianowany dyktatorem na 10 lat"},
+            {year: "46 p.n.e.", location: [41.9028, 12.4964], city: "Rzym", desc: "Reformy: kalendarzowa (juliański), monetarna, społeczna"},
+            {year: "45 p.n.e. (17 Mar)", location: [37.2500, -5.2500], city: "Munda (Hiszpania)", desc: "Ostatnie zwycięstwo w wojnie domowej nad synami Pompejusza"},
+            {year: "45 p.n.e.", location: [41.9028, 12.4964], city: "Rzym", desc: "Powrót do Rzymu, triumf hiszpański, dalsze reformy"},
+            {year: "44 p.n.e. (Luty)", location: [41.9028, 12.4964], city: "Rzym", desc: "Mianowany dyktatorem wieczystym (dictator perpetuus)"},
+            {year: "44 p.n.e. (15 Mar)", location: [41.8919, 12.4853], city: "Rzym (Teatr Pompejusza)", desc: "Idy Marcowe - zabójstwo Cezara przez grupę senatorów"},
+            {year: "44 p.n.e.", location: [41.8925, 12.4853], city: "Rzym (Forum Romanum)", desc: "Publiczny pogrzeb, odczytanie testamentu (Oktawian głównym spadkobiercą)"},
+            {year: "42 p.n.e.", location: [41.9028, 12.4964], city: "Rzym", desc: "Oficjalna deifikacja Cezara przez Senat (Divus Iulius)"}
+        ];
+
+        // Initialize the map
+        var map = L.map('map', {
+            center: [41.9028, 12.4964],
+            zoom: 5
+        });
+
+        // Add tile layer
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        // Create markers for all events
+        var markers = [];
+        events.forEach(function(event, index) {
+            var marker = L.marker(event.location).addTo(map);
+            
+            var popupContent = `
+                <div style="max-width: 250px;">
+                    <h4 style="margin: 5px 0; font-size: 16px;">${event.year} - ${event.city}</h4>
+                    <p style="margin: 5px 0; font-size: 14px;">${event.desc}</p>
+                </div>
+            `;
+            
+            marker.bindPopup(popupContent);
+            
+            // Store marker reference with event index
+            markers.push({
+                marker: marker,
+                eventIndex: index
+            });
+            
+            // Initially hide all markers except the first one
+            if (index !== 0) {
+                marker.setOpacity(0);
+            }
+        });
+
+        // Create event list
+        var eventPanel = document.getElementById('event-panel');
+        events.forEach(function(event, index) {
+            var eventItem = document.createElement('div');
+            eventItem.className = 'event-item';
+            eventItem.innerHTML = `
+                <div class="event-year">${event.year}</div>
+                <div class="event-city">${event.city}</div>
+                <div class="event-desc">${event.desc}</div>
+            `;
+            
+            eventItem.addEventListener('click', function() {
+                // Highlight the clicked event
+                var allItems = document.querySelectorAll('.event-item');
+                allItems.forEach(function(item) {
+                    item.classList.remove('active-event');
+                });
+                eventItem.classList.add('active-event');
+                
+                // Show the corresponding marker and center the map
+                markers.forEach(function(markerObj) {
+                    if (markerObj.eventIndex === index) {
+                        map.setView(markerObj.marker.getLatLng(), 8);
+                        markerObj.marker.setOpacity(1);
+                        markerObj.marker.openPopup();
+                    } else {
+                        markerObj.marker.setOpacity(0);
+                    }
+                });
+                
+                // Update slider position
+                document.getElementById('year-slider').value = index;
+                document.getElementById('current-year').textContent = event.year;
+            });
+            
+            eventPanel.appendChild(eventItem);
+        });
+
+        // Initialize slider
+        var slider = document.getElementById('year-slider');
+        var currentYearDisplay = document.getElementById('current-year');
+        
+        slider.addEventListener('input', function() {
+            var index = parseInt(this.value);
+            var event = events[index];
+            currentYearDisplay.textContent = event.year;
+            
+            // Simulate click on the corresponding event item
+            var eventItems = document.querySelectorAll('.event-item');
+            if (eventItems[index]) {
+                eventItems[index].click();
+            }
+        });
+
+        // Show the first event by default
+        if (events.length > 0) {
+            document.querySelector('.event-item').classList.add('active-event');
+            map.setView(markers[0].marker.getLatLng(), 8);
+            markers[0].marker.openPopup();
+            currentYearDisplay.textContent = events[0].year;
+        }
+    </script>
+</body>
+</html>
