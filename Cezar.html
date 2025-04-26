@@ -88,7 +88,7 @@
     </div>
     
     <div id="slider-container">
-        <input type="range" id="year-slider" min="0" max="58" value="0" step="1">
+        <input type="range" id="year-slider" min="0" value="0" step="1">
         <span id="current-year">100 p.n.e.</span>
     </div>
     
@@ -169,7 +169,7 @@
         // Initialize the map
         var map = L.map('map', {
             center: [41.9028, 12.4964],
-            zoom: 5
+            zoom: 6
         });
 
         // Add tile layer
@@ -225,7 +225,7 @@
                 // Show the corresponding marker and center the map
                 markers.forEach(function(markerObj) {
                     if (markerObj.eventIndex === index) {
-                        map.setView(markerObj.marker.getLatLng(), 8);
+                        map.setView(markerObj.marker.getLatLng());
                         markerObj.marker.setOpacity(1);
                         markerObj.marker.openPopup();
                     } else {
@@ -243,6 +243,8 @@
 
         // Initialize slider
         var slider = document.getElementById('year-slider');
+		// ustawienie dynamicznie maksymalnej wartości suwaka
+		slider.max = events.length - 1;
         var currentYearDisplay = document.getElementById('current-year');
         
         slider.addEventListener('input', function() {
@@ -260,7 +262,7 @@
         // Show the first event by default
         if (events.length > 0) {
             document.querySelector('.event-item').classList.add('active-event');
-            map.setView(markers[0].marker.getLatLng(), 8);
+            map.setView(markers[0].marker.getLatLng());
             markers[0].marker.openPopup();
             currentYearDisplay.textContent = events[0].year;
         }

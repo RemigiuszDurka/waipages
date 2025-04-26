@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <title>Życie Aleksandra Wielkiego</title>
+    <style>
+        html, body { width: 100%; height: 100%; margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        #header { padding: 10px; background: #34495e; color: white; text-align: center; }
+        #container { display: flex; height: calc(100% - 120px); }
+        #map { width: 70%; height: 100%; }
+        #event-panel { width: 30%; height: 100%; overflow-y: auto; padding: 10px; box-sizing: border-box; border-left: 1px solid #ddd; background: #f9f9f9; }
+        #slider-container { padding: 15px; background: #bdc3c7; text-align: center; }
+		#year-slider { width: 90%; }
+        .event-item { padding: 10px; border-bottom: 1px solid #eee; cursor: pointer; transition: background 0.3s; }
+        .event-item:hover { background-color: #e6f7ff; }
+        .active-event { background-color: #d4e6f1; border-left: 4px solid #2980b9; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.css"/>
+</head>
+<body>
+    <div id="header"><h1>Aleksander Wielki</h1></div>
+    <div id="slider-container">
+        <input type="range" id="year-slider" min="0" value="0" step="1">
+        <span id="current-year">356 p.n.e.</span>
+    </div>
+    <div id="container">
+        <div id="map"></div>
+        <div id="event-panel"></div>
+    </div>
+
+<script>
+const events = [
+  // Wczesne lata i edukacja (356–338 p.n.e.)
+  {year: "356 p.n.e.", location: [40.5131, 22.2036], city: "Pella", desc: "Narodziny Aleksandra, syna Filipa II i Olimpias"},
+  {year: "354 p.n.e.", location: [40.5131, 22.2036], city: "Pella", desc: "Prezentacja u macedońskiego dworu jako książę"},
+  {year: "350 p.n.e.", location: [40.6488, 22.0445], city: "Mieza", desc: "Rozpoczęcie nauki pod okiem Leonidasa z Epiru"},
+  {year: "343 p.n.e.", location: [40.6488, 22.0445], city: "Mieza", desc: "Przybycie Arystotelesa jako prywatnego nauczyciela"},
+  {year: "342 p.n.e.", location: [40.6488, 22.0445], city: "Mieza", desc: "Studia nad filozofią i naukami przyrodniczymi"},
+  {year: "341 p.n.e.", location: [40.6488, 22.0445], city: "Mieza", desc: "Zajęcia z taktyki i strategii wojskowej"},
+  {year: "340 p.n.e.", location: [40.5131, 22.2036], city: "Pella", desc: "Ujarzmienie konia Bucefala"},
+  {year: "340 p.n.e.", location: [40.5131, 22.2036], city: "Pella", desc: "Powierzenie regencji Macedonii podczas kampanii Filipa"},
+  {year: "338 p.n.e.", location: [38.3956, 23.1568], city: "Cheronea", desc: "Udział i zasługi w bitwie pod Cheroneą"},
+
+  // Ustanowienie władzy i konsolidacja (336–334 p.n.e.)
+  {year: "336 p.n.e.", location: [40.5131, 22.2036], city: "Aigai", desc: "Zamordowanie Filipa II i objęcie tronu"},
+  {year: "336 p.n.e.", location: [40.5131, 22.2036], city: "Aigai", desc: "Koronacja na króla Macedonii"},
+  {year: "336 p.n.e.", location: [40.5131, 22.2036], city: "Aigai", desc: "Igrzyska pogrzebowe i uroczystości ku czci Filipa"},
+  {year: "336 p.n.e.", location: [37.9380, 22.9325], city: "Korynt", desc: "Złożenie przysięgi Ligi Korynckiej jako hegemon"},
+  {year: "335 p.n.e.", location: [41.6070, 25.8562], city: "Tracja", desc: "Tłumienie buntu plemion trackich"},
+  {year: "335 p.n.e.", location: [40.7686, 21.7522], city: "Pelion", desc: "Oblężenie i zdobycie twierdzy Pelion"},
+  {year: "335 p.n.e.", location: [40.3750, 23.0600], city: "Maroneja", desc: "Podbicie miasta Maroneja"},
+  {year: "335 p.n.e.", location: [42.5000, 17.5000], city: "Iliria", desc: "Podbicie plemion iliryjskich"},
+  {year: "334 p.n.e.", location: [40.9833, 24.3203], city: "Dorisk", desc: "Zgromadzenie wojsk przy miejscowości Dorisk"},
+  {year: "334 p.n.e.", location: [40.1550, 26.4120], city: "Hellespont", desc: "Przekroczenie Hellespontu i początek kampanii w Azji"},
+
+  // Kampania w Azji Mniejszej (334–332 p.n.e.)
+  {year: "334 p.n.e.", location: [40.5633, 27.2325], city: "Granikos", desc: "Bitwa nad Granikosem – zwycięstwo nad Persami"},
+  {year: "334 p.n.e.", location: [37.5290, 27.2797], city: "Milet", desc: "Oblężenie i zdobycie Miletu"},
+  {year: "334 p.n.e.", location: [37.0344, 27.4294], city: "Halikarnas", desc: "Podbicie Halikarnasu"},
+  {year: "334 p.n.e.", location: [39.9415, 26.1414], city: "Aleksandria Troas", desc: "Założenie Aleksandrii Troas"},
+  {year: "333 p.n.e.", location: [36.6345, 36.1672], city: "Issos", desc: "Bitwa pod Issos – klęska Dariusza III"},
+  {year: "333 p.n.e.", location: [36.9183, 34.8928], city: "Tars", desc: "Oblężenie i zdobycie Tarsu"},
+  {year: "332 p.n.e.", location: [33.2707, 35.1939], city: "Tyr", desc: "Siedmiomiesięczne oblężenie i zdobycie Tyru"},
+  {year: "332 p.n.e.", location: [33.2733, 35.2035], city: "Morze Śródziemne", desc: "Morska blokada Tyru"},
+  {year: "332 p.n.e.", location: [31.5204, 34.6182], city: "Gaza", desc: "Zdobycie Gazy po ciężkim oblężeniu"},
+  {year: "332 p.n.e.", location: [31.2640, 32.5764], city: "Peluzjon", desc: "Wejście do Egiptu przez Peluzjon"},
+  {year: "332 p.n.e.", location: [29.8716, 31.1957], city: "Memfis", desc: "Ogłoszenie Aleksandra synem Amona"},
+  {year: "332 p.n.e.", location: [31.2001, 29.9187], city: "Aleksandria", desc: "Założenie Aleksandrii nad Nilem"},
+  {year: "331 p.n.e.", location: [29.2000, 25.5167], city: "Siwa", desc: "Wyprawa do oazy Siwa i konsultacja u wyroczni Amona"},
+  {year: "331 p.n.e.", location: [26.0667, 33.8333], city: "Pustynia Zachodnia", desc: "Rozpoczęcie prac nad kanałem między Nilem a Morzem Czerwonym"},
+
+  // Kampania w Mezopotamii i Persji (331–330 p.n.e.)
+  {year: "331 p.n.e.", location: [36.3667, 43.1667], city: "Gaugamela", desc: "Decydujące zwycięstwo pod Gaugamelą"},
+  {year: "331 p.n.e.", location: [32.5436, 44.4200], city: "Babilon", desc: "Ujęcie Babilonu bez walk"},
+  {year: "331 p.n.e.", location: [32.5436, 44.4200], city: "Babilon", desc: "Modlitwa i złożenie darów w świątyni Esagila"},
+  {year: "330 p.n.e.", location: [32.1892, 48.2436], city: "Suza", desc: "Zdobycie Suzy i przejęcie skarbca perskiego"},
+  {year: "330 p.n.e.", location: [32.1892, 48.2436], city: "Suza", desc: "Założenie Aleksandrii Susijskiej"},
+  {year: "330 p.n.e.", location: [29.9350, 52.8916], city: "Persepolis", desc: "Wejście do pałaców i profanacja Persepolis"},
+  {year: "330 p.n.e.", location: [29.9350, 52.8916], city: "Persepolis", desc: "Spalenie Persepolis"},
+  {year: "330 p.n.e.", location: [34.1622, 48.5965], city: "Ecbatana", desc: "Ujęcie Ecbatany i zakończenie kampanii w Medii"},
+  {year: "330 p.n.e.", location: [34.1622, 48.5965], city: "Ecbatana", desc: "Egzekucja Filotasa i Parmeniona"},
+  {year: "330 p.n.e.", location: [36.4167, 53.0000], city: "Hyrcania", desc: "Tłumienie oporu Hyrcanów"},
+
+  // Wschodni regiony i Sogdiana (329–327 p.n.e.)
+  {year: "329 p.n.e.", location: [35.2570, 74.8450], city: "Aornos", desc: "Oblężenie i zdobycie twierdzy Aornos"},
+  {year: "329 p.n.e.", location: [40.2700, 69.6410], city: "Eschata", desc: "Założenie Aleksandrii Eskhata"},
+  {year: "329 p.n.e.", location: [36.7562, 66.8972], city: "Bactra", desc: "Podbicie Baktry"},
+  {year: "329 p.n.e.", location: [36.7562, 66.8972], city: "Bactra", desc: "Zakładanie osad greckich w Baktrii"},
+  {year: "328 p.n.e.", location: [39.6270, 66.9741], city: "Sogdiana", desc: "Tłumienie buntu Spitamenesa"},
+  {year: "328 p.n.e.", location: [39.6542, 66.9597], city: "Samarkanda", desc: "Oblężenie i opanowanie Marakandy"},
+  {year: "328 p.n.e.", location: [39.6542, 66.9597], city: "Samarkanda", desc: "Morderstwo Kleitosa Czarnego podczas biesiady"},
+  {year: "328 p.n.e.", location: [34.4342, 70.4477], city: "Jalalabad", desc: "Przekroczenie Hindukuszu przez Przełęcz Chawak"},
+  {year: "327 p.n.e.", location: [30.1978, 71.4711], city: "Multan", desc: "Ekspedycja wzdłuż doliny Indusu"},
+  {year: "327 p.n.e.", location: [34.4342, 70.4477], city: "Jalalabad", desc: "Założenie Aleksandrii na Kaukazie"},
+  {year: "327 p.n.e.", location: [35.2225, 72.4258], city: "Dolatawad", desc: "Postój i uzupełnienie sił w dolinie Swat"},
+
+  // Kampania indyjska (326–325 p.n.e.)
+  {year: "326 p.n.e.", location: [32.9326, 73.7269], city: "Hydaspes", desc: "Bitwa nad Hydaspes – zdobycie Porusa"},
+  {year: "326 p.n.e.", location: [32.9333, 73.7333], city: "Bucephala", desc: "Założenie miasta Bucefalia"},
+  {year: "326 p.n.e.", location: [31.8170, 75.0742], city: "Hyphasis", desc: "Bunt żołnierzy nad rzeką Hyphasis"},
+  {year: "326 p.n.e.", location: [31.8170, 75.0742], city: "Hyphasis", desc: "Decyzja o zatrzymaniu marszu na wschód"},
+  {year: "325 p.n.e.", location: [25.0000, 62.0000], city: "Makran", desc: "Przejście przez pustynię Makrańską"},
+  {year: "325 p.n.e.", location: [26.5000, 63.0000], city: "Gedros", desc: "Założenie obozu w Gedrosji po powrocie"},
+
+  // Powrót i polityka wewnętrzna (324 p.n.e.)
+  {year: "324 p.n.e.", location: [32.1850, 48.2570], city: "Suza", desc: "Przybycie do Suzy i przygotowania do biesiady"},
+  {year: "324 p.n.e.", location: [32.1850, 48.2570], city: "Suza", desc: "Wielkie Zaślubiny: masowe małżeństwa Macedończyków z Perskami"},
+  {year: "324 p.n.e.", location: [32.1850, 48.2570], city: "Suza", desc: "Wprowadzenie perskich zwyczajów na dworze"},
+  {year: "324 p.n.e.", location: [32.0931, 44.9658], city: "Opis", desc: "Zjazd w Opis – reorganizacja armii i czystki elit"},
+  {year: "324 p.n.e.", location: [32.0931, 44.9658], city: "Opis", desc: "Przemarsz części armii ku Macedonia"},
+  {year: "324 p.n.e.", location: [34.1622, 48.5965], city: "Ecbatana", desc: "Śmierć Hefajstiona w Ecbatanie"},
+
+  // Ostatnie lata i śmierć (323 p.n.e.)
+  {year: "323 p.n.e.", location: [32.5436, 44.4200], city: "Babilon", desc: "Powrót do Babilonu i plany wyprawy do Arabii"},
+  {year: "323 p.n.e.", location: [32.5436, 44.4200], city: "Babilon", desc: "Bankiet i zachorowanie Aleksandra"},
+  {year: "323 p.n.e.", location: [32.5436, 44.4200], city: "Babilon", desc: "Śmierć Aleksandra Wielkiego (10 czerwca 323 p.n.e.)"},
+  {year: "323 p.n.e.", location: [32.5436, 44.4200], city: "Babilon", desc: "Uroczysty pogrzeb i wystawienie trumny"},
+  {year: "323 p.n.e.", location: [32.5436, 44.4200], city: "Babilon", desc: "Pierwszy podział terytoriów – wyznaczenie regenta Perdykkasa"},
+  {year: "323 p.n.e.", location: [29.8716, 31.1957], city: "Memfis", desc: "Ptolemeusz wywozi ciało Aleksandra do Egiptu"}
+];
+
+        const map = L.map('map', { center: [40.5131, 22.2036], zoom: 5 });
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+        const markers = events.map((event, index) => {
+            const marker = L.marker(event.location).addTo(map);
+            marker.bindPopup(`<h4>${event.year} - ${event.city}</h4><p>${event.desc}</p>`);
+            marker.setOpacity(index === 0 ? 1 : 0);
+            return marker;
+        });
+
+        const panel = document.getElementById('event-panel');
+        events.forEach((event, index) => {
+            const item = document.createElement('div');
+            item.className = 'event-item';
+            item.innerHTML = `<b>${event.year}</b> - ${event.city}<br>${event.desc}`;
+            item.onclick = () => {
+                document.querySelectorAll('.event-item').forEach(e => e.classList.remove('active-event'));
+                item.classList.add('active-event');
+                markers.forEach((m, idx) => m.setOpacity(idx === index ? 1 : 0));
+                map.setView(markers[index].getLatLng());
+                markers[index].openPopup();
+                slider.value = index;
+                document.getElementById('current-year').textContent = event.year;
+            };
+            panel.appendChild(item);
+        });
+
+        const slider = document.getElementById('year-slider');
+        slider.max = events.length - 1;
+        slider.oninput = () => document.querySelectorAll('.event-item')[slider.value].click();
+
+        if(events.length) document.querySelector('.event-item').click();
+    </script>
+</body>
+</html>
