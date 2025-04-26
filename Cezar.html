@@ -177,6 +177,10 @@
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         }).addTo(map);
 
+        // Połącz wszystkie odwiedzone punkty linią przerywaną
+        const latlngs = events.map(e => e.location);
+        L.polyline(latlngs, { color: 'gray', weight: 0.5, dashArray: '4, 4' }).addTo(map);
+		
         // Create markers for all events
         var markers = [];
         events.forEach(function(event, index) {

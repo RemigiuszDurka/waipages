@@ -129,7 +129,10 @@ const events = [
             marker.setOpacity(index === 0 ? 1 : 0);
             return marker;
         });
-
+        // Połącz wszystkie odwiedzone punkty linią przerywaną
+        const latlngs = events.map(e => e.location);
+        L.polyline(latlngs, { color: 'red', weight: 1.1, dashArray: '4, 4' }).addTo(map);
+		
         const panel = document.getElementById('event-panel');
         events.forEach((event, index) => {
             const item = document.createElement('div');
