@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wizualizacja Stożka Świetlnego - Klepsydra</title>
+    
+    <!-- MathJax Configuration -->
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
+            svg: { fontCache: 'global' }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        /* Zmiana tła strony na białe */
+        body { margin: 0; overflow: hidden; background-color: #ffffff; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333; }
+        #canvas-container { width: 100vw; height: 100vh; display: block; }
+        
+        /* UI Overlay - Przeniesiony na dolny lewy róg */
+        #ui-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            /* Reset poprzednich pozycji */
+            top: auto; 
+            right: auto;
+            
+            width: 340px;
+            background: rgba(30, 30, 40, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            max-height: 80vh; /* Trochę mniej żeby nie wychodziło za ekran */
+            overflow-y: auto;
+            color: white; 
+        }
+
+        h1 { margin: 0 0 15px 0; font-size: 1.2rem; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 10px; }
+        
+        .control-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-size: 0.9rem; color: #ccc; }
+        
+        /* Slider styling */
+        input[type=range] {
+            width: 100%;
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #4a9eff;
+            cursor: pointer;
+            margin-top: -6px;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #555;
+            border-radius: 2px;
+        }
+
+        /* Buttons */
+        .btn-row {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        button {
+            flex: 1;
+            padding: 8px 10px;
+            background: #4a9eff;
+            border: none;
+            border-radius: 6px;
+            color: white;
+            font-weight: bold;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            min-width: 80px;
+        }
+        button:hover { background: #3182ce; }
+        
+        /* Stan aktywny/wciśnięty dla przycisków toggle */
+        button.active { background: #2b6cb0; box-shadow: inset 0 2px 4px rgba(0,0,0,0.3); }
+        button.stop-mode { background: #e53e3e; }
+        button.loop-active { background: #38a169; }
+
+        .checkbox-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+        .checkbox-row input { margin-right: 12px; cursor: pointer; }
+        
+        /* Custom Legend */
+        .legend-content {
+            display: flex;
+            align-items: center;
+            flex: 1;
+        }
+        .dot { width: 10px; height: 10px; border-radius: 50%; margin-right: 10px; display: inline-block; flex-shrink: 0; }
+        
+        #time-display { float: right; font-family: monospace; color: #4a9eff; }
+
+        mjx-container { font-size: 1rem !important; }
+    </style>
+    <!-- Import Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+
+<div id="ui-panel">
+    <h1>Stożek Świetlny <span id="time-display">t=0.00</span></h1>
+    
+    <div class="control-group btn-row">
+        <button id="start-stop-btn" class="stop-mode">Stop</button>
+        <button id="restart-btn">Restart</button>
+        <button id="loop-btn" class="loop-active">Pętla: ON</button>
+    </div>
+
+    <div class="control-group">
+        <label>Czas ($t$)</label>
+        <input type="range" id="time-slider" min="0" max="10" step="0.01" value="0">
+    </div>
+
+    <div class="control-group">
+        <label style="margin-bottom:10px; color:white; border-bottom:1px solid #444; padding-bottom:5px;">Elementy wizualizacji:</label>
+        
+        <div class="checkbox-row">
+            <input type="checkbox" id="check-cone" checked>
+            <label for="check-cone" style="margin:0; cursor:pointer;">Pokaż stożek świetlny ($v=c$)</label>
+        </div>
+
+        <div class="checkbox-row">
+            <input type="checkbox" id="check-a" checked>
+            <div class="legend-content">
+                <!-- (a) Spoczynek: CZERWONY -->
+                <span class="dot" style="background:#ff0000;"></span> 
+                <span>(a) Spoczynek ($v=0$)</span>
+            </div>
+        </div>
+
+        <div class="checkbox-row">
+            <input type="checkbox" id="check-b" checked>
+            <div class="legend-content">
+                <!-- (b) Ruch jednostajny: ZIELONY -->
+                <span class="dot" style="background:#009900;"></span> 
+                <span>(b) Ruch jednostajny ($v < c$)</span>
+            </div>
+        </div>
+
+        <div class="checkbox-row">
+            <input type="checkbox" id="check-c" checked>
+            <div class="legend-content">
+                <!-- (c) Światło: ŻÓŁTY -->
+                <span class="dot" style="background:#ffff00;"></span> 
+                <span>(c) Światło ($v = c$)</span>
+            </div>
+        </div>
+
+        <div class="checkbox-row">
+            <input type="checkbox" id="check-d" checked>
+            <div class="legend-content">
+                <!-- (d) Spirala: FIOLET (ZAMIANA Z E) -->
+                <span class="dot" style="background:#aa00aa;"></span> 
+                <span>(d) Ruch wewnątrz (Spirala)</span>
+            </div>
+        </div>
+
+        <div class="checkbox-row">
+            <input type="checkbox" id="check-e" checked>
+            <div class="legend-content">
+                <!-- (e) Powrót: TURKUSOWY (ZAMIANA Z D) -->
+                <span class="dot" style="background:#00dede;"></span> 
+                <span>(e) Ruch powracający</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="canvas-container"></div>
+
+<script>
+    // --- Konfiguracja Sceny ---
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xffffff);
+    scene.fog = new THREE.FogExp2(0xffffff, 0.015);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    // Zoom out
+    camera.position.set(30, 20, 30); 
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.maxPolarAngle = Math.PI; 
+
+    // Oświetlenie
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1.2); 
+    scene.add(ambientLight);
+    const pointLight = new THREE.PointLight(0xffffff, 0.8, 100);
+    pointLight.position.set(10, 20, 10);
+    scene.add(pointLight);
+
+    // --- Geometria i Pomoce ---
+
+    // 1. Grid
+    const gridSize = 30;
+    const gridDivisions = 30;
+    const gridHelper = new THREE.GridHelper(gridSize, gridDivisions, 0x888888, 0xdddddd);
+    scene.add(gridHelper);
+
+    // 2. WŁASNE GRUBE OSIE (Cylindry)
+    
+    function createThickAxis(startPoint, endPoint, color, thickness) {
+        const direction = new THREE.Vector3().subVectors(endPoint, startPoint);
+        const length = direction.length();
+        
+        const geometry = new THREE.CylinderGeometry(thickness, thickness, length, 16);
+        const material = new THREE.MeshBasicMaterial({ color: color });
+        const cylinder = new THREE.Mesh(geometry, material);
+        
+        // Domyślny cylinder jest wzdłuż osi Y. Musimy go obrócić i przesunąć.
+        // Ustawiamy go w połowie drogi
+        const midPoint = new THREE.Vector3().addVectors(startPoint, endPoint).multiplyScalar(0.5);
+        cylinder.position.copy(midPoint);
+        
+        // Orientacja (Quaternion) - obracamy "Y up" w stronę wektora kierunkowego
+        const axis = new THREE.Vector3(0, 1, 0);
+        cylinder.quaternion.setFromUnitVectors(axis, direction.clone().normalize());
+        
+        return cylinder;
+    }
+
+    // Oś Czasu (Y) - Czarna, Gruba, Przechodzi przez cały stożek
+    const timeAxis = createThickAxis(
+        new THREE.Vector3(0, -16, 0), 
+        new THREE.Vector3(0, 16, 0), 
+        0x000000, // Czarny
+        0.15      // Grubość
+    );
+    scene.add(timeAxis);
+
+    // Oś X (Przestrzeń) - Ciemnoszara, Gruba
+    const spaceAxisX = createThickAxis(
+        new THREE.Vector3(-16, 0, 0), 
+        new THREE.Vector3(16, 0, 0), 
+        0x444444, // Ciemnoszary
+        0.1       // Nieco cieńsza niż oś czasu
+    );
+    scene.add(spaceAxisX);
+
+    // Oś Z (Przestrzeń) - Ciemnoszara, Gruba
+    const spaceAxisZ = createThickAxis(
+        new THREE.Vector3(0, 0, -16), 
+        new THREE.Vector3(0, 0, 16), 
+        0x444444, // Ciemnoszary
+        0.1
+    );
+    scene.add(spaceAxisZ);
+    
+    // Etykiety osi
+    function makeTextSprite(message, color) {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = 256; 
+        canvas.height = 128; 
+        ctx.font = "Bold 80px Arial"; 
+        ctx.fillStyle = color;
+        ctx.textAlign = "center";
+        ctx.fillText(message, 128, 80);
+        const texture = new THREE.CanvasTexture(canvas);
+        const spriteMaterial = new THREE.SpriteMaterial({ map: texture });
+        const sprite = new THREE.Sprite(spriteMaterial);
+        sprite.scale.set(3, 1.5, 1);
+        return sprite;
+    }
+
+    const tLabel = makeTextSprite("t (czas)", "#000000"); // Czarny napis
+    tLabel.position.set(0, 17, 0); // Trochę wyżej nad osią
+    scene.add(tLabel);
+
+    // 3. Stożek Świetlny (Klepsydra) - SZARY
+    const maxTime = 15;
+    const coneHeight = maxTime;
+    const coneRadius = maxTime; 
+    
+    const coneMaterial = new THREE.MeshPhongMaterial({ 
+        color: 0x888888, 
+        transparent: true, 
+        opacity: 0.3,    
+        side: THREE.DoubleSide,
+        shininess: 30,
+        flatShading: false
+    });
+    
+    const coneWireMaterial = new THREE.MeshBasicMaterial({
+        color: 0x444444, 
+        wireframe: true,
+        transparent: true,
+        opacity: 0.2
+    });
+
+    const coneGroup = new THREE.Group();
+
+    function createHalfCone(isFuture) {
+        const geometry = new THREE.ConeGeometry(coneRadius, coneHeight, 64, 5, true);
+        const mesh = new THREE.Mesh(geometry, coneMaterial);
+        const wire = new THREE.Mesh(geometry, coneWireMaterial);
+        
+        const group = new THREE.Group();
+        group.add(mesh);
+        group.add(wire);
+
+        if (isFuture) {
+            mesh.rotation.x = Math.PI; 
+            wire.rotation.x = Math.PI;
+            mesh.position.y = coneHeight / 2;
+            wire.position.y = coneHeight / 2;
+        } else {
+            mesh.position.y = -coneHeight / 2;
+            wire.position.y = -coneHeight / 2;
+        }
+        return group;
+    }
+
+    const futureCone = createHalfCone(true);
+    const pastCone = createHalfCone(false);
+    
+    coneGroup.add(futureCone);
+    coneGroup.add(pastCone);
+    scene.add(coneGroup);
+
+
+    // --- Logika Cząstek ---
+
+    class Particle {
+        constructor(color, name, calcPosFunction, isVisible = true) {
+            this.color = color;
+            this.calcPos = calcPosFunction;
+            this.visible = isVisible;
+            
+            // Kropka
+            const geometry = new THREE.SphereGeometry(0.3, 32, 32);
+            const material = new THREE.MeshStandardMaterial({ 
+                color: color, 
+                emissive: color,
+                emissiveIntensity: 0.4 
+            });
+            this.mesh = new THREE.Mesh(geometry, material);
+            scene.add(this.mesh);
+
+            // Linia trajektorii
+            const maxPoints = 1500;
+            this.positions = new Float32Array(maxPoints * 3);
+            this.lineGeo = new THREE.BufferGeometry();
+            this.lineGeo.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
+            
+            const lineMat = new THREE.LineBasicMaterial({ color: color, linewidth: 3 });
+            this.line = new THREE.Line(this.lineGeo, lineMat);
+            this.line.frustumCulled = false;
+            scene.add(this.line);
+
+            // Pre-kalkulacja
+            this.fullPath = [];
+            const trajMaxTime = 15; 
+            for(let i=0; i<maxPoints; i++) {
+                const t = (i / (maxPoints - 1)) * trajMaxTime;
+                this.fullPath.push(this.calcPos(t));
+            }
+        }
+
+        update(currentTime) {
+            if (!this.visible) {
+                this.mesh.visible = false;
+                this.line.visible = false;
+                return;
+            }
+            this.mesh.visible = true;
+            this.line.visible = true;
+
+            const currentPos = this.calcPos(currentTime);
+            this.mesh.position.set(currentPos.x, currentPos.y, currentPos.z);
+
+            const trajMaxTime = 15;
+            const drawCount = Math.floor((currentTime / trajMaxTime) * 1500);
+            const safeDrawCount = Math.min(drawCount, 1500 - 1);
+
+            for(let i=0; i <= safeDrawCount; i++) {
+                const p = this.fullPath[i];
+                this.positions[i*3] = p.x;
+                this.positions[i*3+1] = p.y;
+                this.positions[i*3+2] = p.z;
+            }
+            
+            this.lineGeo.setDrawRange(0, safeDrawCount);
+            this.lineGeo.attributes.position.needsUpdate = true;
+        }
+
+        toggle(state) {
+            this.visible = state;
+            if(!state) {
+                this.mesh.visible = false;
+                this.line.visible = false;
+            }
+        }
+    }
+
+    // --- Definicje Przypadków ze Zmienionymi Kolorami ---
+    
+    // (a) Spoczynek -> CZERWONY
+    const pA = new Particle(0xff0000, "Spoczynek", (t) => {
+        return { x: 0, y: t, z: 0 };
+    });
+
+    // (b) Ruch jednostajny -> ZIELONY
+    const pB = new Particle(0x009900, "Ruch v<c", (t) => {
+        return { x: 0.5 * t, y: t, z: 0 };
+    });
+
+    // (c) Światło -> ŻÓŁTY
+    const pC = new Particle(0xffff00, "Światło", (t) => {
+        return { x: t, y: t, z: 0 }; 
+    });
+
+    // (d) Spirala -> FIOLET (ZAMIANA)
+    const pD = new Particle(0xaa00aa, "Spirala", (t) => {
+        const r = 0.6 * t; 
+        const angle = t * 1.5; 
+        return { 
+            x: r * Math.cos(angle), 
+            y: t, 
+            z: r * Math.sin(angle) 
+        };
+    });
+
+    // (e) Ruch powracający -> TURKUSOWY (ZAMIANA)
+    const pE = new Particle(0x00dede, "Powrót", (t) => {
+        const duration = 10;
+        let val = 0;
+        const amplitude = 2.8;
+        if (t >= 0 && t <= duration) {
+            val = amplitude * Math.sin(Math.PI * t / duration);
+        }
+        return { x: val, y: t, z: 0 };
+    });
+
+    const particles = {
+        'a': pA,
+        'b': pB,
+        'c': pC,
+        'd': pD,
+        'e': pE
+    };
+
+
+    // --- Pętla Animacji i UI ---
+
+    let time = 0;
+    let isPlaying = true;
+    let isLooping = true;
+    const timeSpeed = 0.05; 
+    const maxSimTime = 10; 
+
+    const slider = document.getElementById('time-slider');
+    const startStopBtn = document.getElementById('start-stop-btn');
+    const restartBtn = document.getElementById('restart-btn');
+    const loopBtn = document.getElementById('loop-btn');
+    const timeDisplay = document.getElementById('time-display');
+
+    // Obsługa Checkboxów
+    document.getElementById('check-cone').addEventListener('change', (e) => {
+        coneGroup.visible = e.target.checked;
+    });
+    document.getElementById('check-a').addEventListener('change', (e) => particles['a'].toggle(e.target.checked));
+    document.getElementById('check-b').addEventListener('change', (e) => particles['b'].toggle(e.target.checked));
+    document.getElementById('check-c').addEventListener('change', (e) => particles['c'].toggle(e.target.checked));
+    document.getElementById('check-d').addEventListener('change', (e) => particles['d'].toggle(e.target.checked));
+    document.getElementById('check-e').addEventListener('change', (e) => particles['e'].toggle(e.target.checked));
+
+    // START / STOP
+    startStopBtn.addEventListener('click', () => {
+        isPlaying = !isPlaying;
+        if (isPlaying) {
+            startStopBtn.textContent = "Stop";
+            startStopBtn.classList.add("stop-mode");
+            startStopBtn.classList.remove("play-mode");
+        } else {
+            startStopBtn.textContent = "Start";
+            startStopBtn.classList.remove("stop-mode");
+            startStopBtn.classList.add("play-mode");
+        }
+    });
+
+    // RESTART (tylko zeruje t)
+    restartBtn.addEventListener('click', () => {
+        time = 0;
+        slider.value = 0;
+    });
+
+    // LOOP TOGGLE
+    loopBtn.addEventListener('click', () => {
+        isLooping = !isLooping;
+        if (isLooping) {
+            loopBtn.textContent = "Pętla: ON";
+            loopBtn.classList.add("loop-active");
+        } else {
+            loopBtn.textContent = "Pętla: OFF";
+            loopBtn.classList.remove("loop-active");
+        }
+    });
+
+    slider.addEventListener('input', (e) => {
+        // Przy manualnym suwaniu zatrzymujemy (opcjonalnie) lub po prostu przesuwamy
+        isPlaying = false; 
+        startStopBtn.textContent = "Start";
+        startStopBtn.classList.remove("stop-mode");
+        time = parseFloat(e.target.value);
+    });
+
+    function animate() {
+        requestAnimationFrame(animate);
+
+        if (isPlaying) {
+            time += timeSpeed;
+            
+            if (time > maxSimTime) {
+                if (isLooping) {
+                    time = 0;
+                } else {
+                    time = maxSimTime;
+                    isPlaying = false;
+                    startStopBtn.textContent = "Start";
+                    startStopBtn.classList.remove("stop-mode");
+                }
+            }
+            slider.value = time;
+        }
+
+        timeDisplay.textContent = `t=${time.toFixed(2)}`;
+
+        Object.values(particles).forEach(p => p.update(time));
+
+        controls.update();
+        renderer.render(scene, camera);
+    }
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    animate();
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Symulacja Czasoprzestrzenna: Nowikow vs Paradoks Dziadka</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background-color: #0f172a; 
+            color: white; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        
+        .panel {
+            position: relative;
+            background: #1e293b;
+            padding: 10px 20px;
+            border-bottom: 1px solid #334155;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+        }
+
+        @media (min-width: 768px) {
+            .panel {
+                flex-direction: row;
+                align-items: center;
+                justify-content: space-between;
+            }
+        }
+
+        .tab-btn {
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+        }
+
+        .tab-btn.active {
+            background-color: #3b82f6;
+            color: white;
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+        }
+
+        .tab-btn.inactive {
+            background-color: #334155;
+            color: #94a3b8;
+        }
+
+        .tab-btn.inactive:hover {
+            background-color: #475569;
+            color: white;
+        }
+
+        #canvas-container {
+            flex-grow: 1;
+            position: relative;
+            overflow: hidden;
+            background: #0f172a;
+        }
+
+        canvas { 
+            display: block; 
+            width: 100%; 
+            height: 100%;
+            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+        }
+
+        .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; white-space: nowrap; color: #cbd5e1; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; }
+        
+        /* Styl suwaka */
+        input[type=range] {
+            height: 4px;
+            -webkit-appearance: none;
+            background: #475569;
+            border-radius: 2px;
+            outline: none;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            transition: background .15s ease-in-out;
+        }
+        input[type=range]::-webkit-slider-thumb:hover {
+            background: #60a5fa;
+        }
+
+        /* Glitch effect class for paradox text */
+        .glitch-text {
+            animation: glitch 1s linear infinite;
+            color: #ef4444;
+            font-weight: bold;
+        }
+
+        @keyframes glitch {
+            2%, 64% { transform: translate(2px,0) skew(0deg); }
+            4%, 60% { transform: translate(-2px,0) skew(0deg); }
+            62% { transform: translate(0,0) skew(5deg); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="panel">
+        <div class="flex flex-col gap-2">
+            <div class="flex items-center gap-4 flex-wrap">
+                <h1 class="text-lg font-bold text-white tracking-wide">FIZYKA CZASU</h1>
+                <div class="flex gap-2 bg-slate-800 p-1 rounded-lg">
+                    <button id="btnNovikov" class="tab-btn active" onclick="setMode('novikov')">Zasada Nowikowa</button>
+                    <button id="btnParadox" class="tab-btn inactive" onclick="setMode('paradox')">Paradoks Dziadka</button>
+                </div>
+                
+                <!-- Kontrola prędkości -->
+                <div class="flex items-center gap-2 ml-2 bg-slate-800/50 px-3 py-1 rounded-lg border border-slate-700">
+                    <span class="text-[10px] uppercase text-gray-400 font-semibold tracking-wider">Tempo</span>
+                    <input type="range" id="speedSlider" min="0.1" max="2.0" step="0.1" value="1.0" class="w-24">
+                </div>
+            </div>
+            
+            <div class="flex flex-wrap gap-4 mt-1">
+                <div class="legend-item"><div class="dot bg-white shadow-[0_0_5px_white]"></div> Bila Biała (Młoda)</div>
+                <div class="legend-item"><div class="dot bg-yellow-400 shadow-[0_0_5px_yellow]"></div> Bila Żółta (Starsza)</div>
+                <div class="legend-item"><div class="dot border border-cyan-400"></div> WLOT (A)</div>
+                <div class="legend-item"><div class="dot border border-orange-400"></div> WYLOT (B)</div>
+            </div>
+        </div>
+
+        <div class="flex flex-col gap-2 min-w-[300px] text-right">
+            <p id="statusText" class="text-xs font-mono h-4 text-blue-300">Inicjalizacja...</p>
+            <div class="w-full bg-slate-700 h-1.5 rounded overflow-hidden">
+                <div id="progressBar" class="bg-blue-500 h-full w-0 transition-all duration-75"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="canvas-container">
+        <canvas id="animCanvas"></canvas>
+    </div>
+
+<script>
+const canvas = document.getElementById('animCanvas');
+const container = document.getElementById('canvas-container');
+const ctx = canvas.getContext('2d');
+const progressBar = document.getElementById('progressBar');
+const statusText = document.getElementById('statusText');
+const btnNovikov = document.getElementById('btnNovikov');
+const btnParadox = document.getElementById('btnParadox');
+const speedSlider = document.getElementById('speedSlider');
+
+let width, height;
+let currentMode = 'novikov'; // 'novikov' or 'paradox'
+
+// Konfiguracja animacji
+const BASE_DURATION = 6000;
+let progress = 0; // 0.0 do 1.0
+let lastFrameTime = null;
+let speedFactor = 1.0;
+
+// Pozycje punktów (obliczane dynamicznie w resize)
+let points = {};
+
+// Nasłuchiwanie suwaka
+speedSlider.addEventListener('input', (e) => {
+    speedFactor = parseFloat(e.target.value);
+});
+
+function setMode(mode) {
+    currentMode = mode;
+    progress = 0; // Reset animacji do początku
+    
+    // Update UI buttons
+    if(mode === 'novikov') {
+        btnNovikov.className = 'tab-btn active';
+        btnParadox.className = 'tab-btn inactive';
+        statusText.classList.remove('glitch-text');
+    } else {
+        btnNovikov.className = 'tab-btn inactive';
+        btnParadox.className = 'tab-btn active';
+    }
+    
+    // Recalculate points for new mode
+    resize();
+}
+
+function resize() {
+    const rect = container.getBoundingClientRect();
+    width = rect.width;
+    height = rect.height;
+    
+    canvas.width = width;
+    canvas.height = height;
+
+    const cx = width / 2;
+    const cy = height / 2;
+    const scale = Math.min(width, height) * 0.32; 
+
+    const offsetY = scale * 0.2;
+    const holeIn = { x: cx + scale * 0.8, y: cy - scale * 0.5 + offsetY }; 
+    const holeOut = { x: cx - scale * 0.8, y: cy - scale * 0.5 + offsetY }; 
+    const commonStart = { x: cx, y: cy + scale + offsetY };
+
+    if (currentMode === 'novikov') {
+        points = {
+            mode: 'novikov',
+            holeIn: holeIn,
+            holeOut: holeOut,
+            collision: { x: cx, y: cy + offsetY }, 
+            youngStart: commonStart, 
+            youngMissTarget: { x: cx, y: cy - scale + offsetY },
+            oldEnd: { x: cx + scale, y: cy + scale + offsetY } 
+        };
+    } else {
+        const collisionT = 0.55;
+        const collisionX = commonStart.x + (holeIn.x - commonStart.x) * collisionT;
+        const collisionY = commonStart.y + (holeIn.y - commonStart.y) * collisionT;
+
+        points = {
+            mode: 'paradox',
+            holeIn: holeIn,
+            holeOut: holeOut,
+            collision: { x: collisionX, y: collisionY },
+            youngStart: commonStart,
+            // Po zderzeniu biała leci w górne prawo (pudło), omijając wlot
+            youngDeflected: { x: cx + scale * 1.3, y: cy - scale * 0.8 + offsetY },
+            oldEnd: { x: cx + scale, y: cy + scale * 0.5 + offsetY }
+        };
+    }
+}
+
+function lerp(start, end, t) {
+    return start + (end - start) * t;
+}
+
+function loop(timestamp) {
+    if (!lastFrameTime) lastFrameTime = timestamp;
+    const dt = timestamp - lastFrameTime;
+    lastFrameTime = timestamp;
+
+    // Aktualizacja postępu w oparciu o czas i suwak prędkości
+    // Zabezpieczenie przed dużym skokiem czasu (np. nieaktywna karta)
+    if (dt < 200) {
+        progress += (dt / BASE_DURATION) * speedFactor;
+    }
+
+    if (progress >= 1.0) {
+        progress = 0; // Pętla
+    }
+    
+    draw(progress);
+    
+    progressBar.style.width = `${progress * 100}%`;
+    
+    requestAnimationFrame(loop);
+}
+
+function draw(t) {
+    // Tło
+    ctx.clearRect(0, 0, width, height);
+    
+    drawGrid();
+    drawTimeLoopConnection();
+
+    // Tunele
+    drawWormhole(points.holeIn.x, points.holeIn.y, '#06b6d4', 'WLOT (A)');
+    drawWormhole(points.holeOut.x, points.holeOut.y, '#f97316', 'WYLOT (B)');
+
+    let youngPos = { x: 0, y: 0 };
+    let oldPos = { x: 0, y: 0 };
+    let collisionHappened = t >= 0.5;
+    
+    // Obliczenia ruchu
+    if (!collisionHappened) {
+        // FAZA 1: ZBLIŻANIE
+        let localT = t / 0.5; // 0.0 -> 1.0
+        
+        youngPos.x = lerp(points.youngStart.x, points.collision.x, localT);
+        youngPos.y = lerp(points.youngStart.y, points.collision.y, localT);
+        
+        oldPos.x = lerp(points.holeOut.x, points.collision.x, localT);
+        oldPos.y = lerp(points.holeOut.y, points.collision.y, localT);
+
+        // Teksty
+        if(points.mode === 'novikov') {
+            statusText.textContent = "1. Biała chybi celu, ale nadlatuje Żółta...";
+            statusText.style.color = "#94a3b8";
+        } else {
+            statusText.textContent = "1. Biała celuje idealnie we WLOT, ale...";
+            statusText.style.color = "#94a3b8";
+            statusText.classList.remove('glitch-text');
+        }
+
+    } else {
+        // FAZA 2: PO ZDERZENIU
+        let localT = (t - 0.5) / 0.5; // 0.0 -> 1.0
+        
+        if (points.mode === 'novikov') {
+            // Nowikow: Biała leci do WLOTU
+            youngPos.x = lerp(points.collision.x, points.holeIn.x, localT);
+            youngPos.y = lerp(points.collision.y, points.holeIn.y, localT);
+            
+            // Żółta rykoszetem w bok
+            oldPos.x = lerp(points.collision.x, points.oldEnd.x, localT);
+            oldPos.y = lerp(points.collision.y, points.oldEnd.y, localT);
+
+            statusText.textContent = "2. SPÓJNOŚĆ: Zderzenie naprowadza Białą do tunelu!";
+            statusText.style.color = "#4ade80";
+
+        } else {
+            // Paradoks: Biała wybita z kursu
+            youngPos.x = lerp(points.collision.x, points.youngDeflected.x, localT);
+            youngPos.y = lerp(points.collision.y, points.youngDeflected.y, localT);
+            
+            // Żółta leci dalej
+            oldPos.x = lerp(points.collision.x, points.oldEnd.x, localT);
+            oldPos.y = lerp(points.collision.y, points.oldEnd.y, localT);
+
+            statusText.textContent = "PARADOKS! Biała nie wpadła -> Żółta nie może istnieć -> BŁĄD!";
+            statusText.style.color = "#ef4444";
+            statusText.classList.add('glitch-text');
+        }
+        
+        // Efekt zderzenia
+        if (localT < 0.2) {
+            drawCollisionEffect(points.collision.x, points.collision.y, 1.0 - localT * 5);
+        }
+    }
+
+    // RYSOWANIE ŚLADÓW (TRAJEKTORII)
+    drawDynamicTrails(t, youngPos, oldPos, collisionHappened);
+
+    // RYSOWANIE BIL
+    
+    // 1. Biała Bila
+    let youngOpacity = 1.0;
+    if (points.mode === 'novikov' && t > 0.9) {
+        youngOpacity = 1.0 - (t - 0.9) * 10;
+    }
+    if (youngOpacity > 0) {
+        drawBall(youngPos.x, youngPos.y, '#ffffff', 'Młoda', youngOpacity, '#22c55e');
+    }
+
+    // 2. Żółta Bila
+    let oldOpacity = 1.0;
+    if (t < 0.1) oldOpacity = t * 10;
+    
+    let isGlitching = false;
+    if (points.mode === 'paradox' && t > 0.55) {
+        isGlitching = true;
+        oldOpacity = Math.random() > 0.5 ? 0.4 : 0.8;
+        if (t > 0.8) oldOpacity = Math.max(0, 1.0 - (t - 0.8) * 5);
+    }
+
+    if (oldOpacity > 0) {
+        let drawX = oldPos.x;
+        let drawY = oldPos.y;
+        if (isGlitching) {
+            drawX += (Math.random() - 0.5) * 10;
+            drawY += (Math.random() - 0.5) * 10;
+        }
+        drawBall(drawX, drawY, '#facc15', 'Starsza', oldOpacity, '#ef4444');
+    }
+}
+
+function drawDynamicTrails(t, currYoung, currOld, collisionHappened) {
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    // --- ŚLAD BIAŁEJ (Zielonkawy) ---
+    ctx.save();
+    ctx.shadowColor = '#4ade80';
+    ctx.shadowBlur = 10;
+    ctx.lineWidth = 4; // Grubszy ślad
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)'; // Jasny środek
+
+    ctx.beginPath();
+    ctx.moveTo(points.youngStart.x, points.youngStart.y);
+    if (!collisionHappened) {
+        ctx.lineTo(currYoung.x, currYoung.y);
+    } else {
+        ctx.lineTo(points.collision.x, points.collision.y);
+        ctx.lineTo(currYoung.x, currYoung.y);
+    }
+    ctx.stroke();
+    
+    // Dodatkowy kolorowy glow na wierzchu
+    ctx.strokeStyle = 'rgba(74, 222, 128, 0.3)'; // Zielony
+    ctx.lineWidth = 8;
+    ctx.stroke();
+    ctx.restore();
+
+    // --- ŚLAD ŻÓŁTEJ (Czerwonawy) ---
+    ctx.save();
+    ctx.shadowColor = '#fbbf24';
+    ctx.shadowBlur = 10;
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = 'rgba(253, 224, 71, 0.4)'; // Żółty środek
+
+    ctx.beginPath();
+    ctx.moveTo(points.holeOut.x, points.holeOut.y);
+    if (!collisionHappened) {
+        ctx.lineTo(currOld.x, currOld.y);
+    } else {
+        ctx.lineTo(points.collision.x, points.collision.y);
+        ctx.lineTo(currOld.x, currOld.y);
+    }
+    ctx.stroke();
+
+    // Dodatkowy kolorowy glow
+    ctx.strokeStyle = 'rgba(251, 191, 36, 0.3)'; // Pomarańczowy
+    ctx.lineWidth = 8;
+    ctx.stroke();
+    ctx.restore();
+
+    // USUNIĘTO RYSOWANIE PRZYSZŁYCH ŚCIEŻEK
+}
+
+function drawBall(x, y, color, label, opacity, glowColor) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.globalAlpha = opacity;
+    
+    ctx.shadowColor = glowColor;
+    ctx.shadowBlur = 20;
+    
+    ctx.beginPath();
+    ctx.arc(0, 0, 12, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    ctx.beginPath();
+    ctx.arc(-4, -4, 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(label, 0, -18);
+    
+    ctx.restore();
+}
+
+function drawWormhole(x, y, color, label) {
+    ctx.save();
+    ctx.translate(x, y);
+    
+    const time = Date.now() / 1000;
+    const pulse = 1 + Math.sin(time * 3) * 0.05;
+    ctx.scale(pulse, pulse);
+    
+    const grad = ctx.createRadialGradient(0, 0, 5, 0, 0, 30);
+    grad.addColorStop(0, '#000');
+    grad.addColorStop(0.5, color);
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(0, 0, 30, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.rotate(time);
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 25, 10, 0, 0, Math.PI*2);
+    ctx.stroke();
+    
+    ctx.rotate(Math.PI/2);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 25, 10, 0, 0, Math.PI*2);
+    ctx.stroke();
+    
+    ctx.restore();
+
+    ctx.fillStyle = color;
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 11px monospace';
+    // Podpis tunelu
+    ctx.fillText(label, x, y + 45);
+}
+
+function drawTimeLoopConnection() {
+    if (!points.holeIn || !points.holeOut) return;
+
+    const start = points.holeOut; // Z wylotu (B)
+    const end = points.holeIn;   // Do wlotu (A)
+    const midX = width / 2;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(start.x, start.y);
+    
+    // Parabola DO GÓRY
+    const controlPointY = points.holeIn.y - 150; 
+
+    ctx.quadraticCurveTo(midX, controlPointY, end.x, end.y);
+    
+    // Styl linii "czasoprzestrzennej"
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+    ctx.lineWidth = 15;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+    
+    // Animowana linia wewnętrzna
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.3)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 10]);
+    ctx.lineDashOffset = (Date.now() / 20); // Płynie w stronę wlotu
+    ctx.stroke();
+
+    // Podpis na górze paraboli
+    ctx.fillStyle = 'rgba(148, 163, 184, 0.8)'; // slate-400
+    ctx.font = 'italic 12px sans-serif';
+    ctx.textAlign = 'center';
+    // Obliczamy przybliżony szczyt łuku dla tekstu
+    const t = 0.5;
+    const cpY = controlPointY;
+    const textY = 0.25 * start.y + 0.5 * cpY + 0.25 * end.y;
+    
+    ctx.fillText("tunel czasoprzestrzenny", midX, textY - 10);
+    
+    ctx.restore();
+}
+
+function drawCollisionEffect(x, y, alpha) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.globalAlpha = alpha;
+    
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    for(let i=0; i<6; i++) {
+        ctx.rotate(Math.PI / 3);
+        ctx.beginPath();
+        ctx.moveTo(10, 0);
+        ctx.lineTo(25, 0);
+        ctx.stroke();
+    }
+    ctx.restore();
+}
+
+function drawGrid() {
+    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    ctx.lineWidth = 1;
+    const step = 50;
+    for(let x=0; x<width; x+=step) {
+        ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,height); ctx.stroke();
+    }
+    for(let y=0; y<height; y+=step) {
+        ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(width,y); ctx.stroke();
+    }
+}
+
+window.addEventListener('resize', resize);
+setMode('novikov'); 
+requestAnimationFrame(loop);
+
+</script>
+</body>
+</html>
