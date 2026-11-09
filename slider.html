@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Suwak parametru a</title>
+    <style>
+        body {
+            min-height: 100vh;
+            margin: 0;
+            padding: 1rem;
+            display: grid;
+            place-items: center;
+            box-sizing: border-box;
+            font-family: system-ui, sans-serif;
+            color: #1e293b;
+            background-color: #f1f5f9;
+            transition: background-color 180ms ease;
+        }
+        main {
+            width: min(100%, 28rem);
+            padding: 1.5rem;
+            box-sizing: border-box;
+            border-radius: 1rem;
+            background: white;
+            box-shadow: 0 8px 24px #0f2a2914;
+        }
+        h1 { margin: 0 0 1.5rem; font-size: 1.4rem; }
+        label, .zakres { display: flex; justify-content: space-between; }
+        label { font-weight: 600; }
+        output { color: #1d4ed8; }
+        input { width: 100%; margin: 1rem 0 0.25rem; accent-color: #1d4ed8; }
+        .zakres { margin: 0; color: #64748b; font-size: 0.875rem; }
+        button {
+            margin-top: 1.25rem;
+            padding: 0.65rem 1rem;
+            border: 0;
+            border-radius: 0.5rem;
+            color: white;
+            background: #1d4ed8;
+            font: inherit;
+            cursor: pointer;
+        }
+        button:hover { background: #1e40af; }
+        button:focus-visible { outline: 3px solid #93c5fd; outline-offset: 2px; }
+    </style>
+</head>
+<body>
+
+    <main>
+        <h1>Interaktywny suwak</h1>
+        <label for="parametr">Parametr a <output id="wartosc" for="parametr" aria-live="polite">2</output></label>
+        <input id="parametr" type="range" min="0" max="10" step="0.5" value="2">
+        <p class="zakres"><span>0</span><span>10</span></p>
+        <button id="reset" type="button">Resetuj</button>
+    </main>
+
+<script>
+    const suwak = document.getElementById("parametr");
+    const wynik = document.getElementById("wartosc");
+    const reset = document.getElementById("reset");
+    const wartoscPoczatkowa = suwak.defaultValue;
+
+    const format = new Intl.NumberFormat("pl-PL", { maximumFractionDigits: 1 });
+
+    function aktualizujWartosc() {
+        const wartosc = Number(suwak.value);
+        wynik.textContent = format.format(wartosc);
+        const odcien = 210 - wartosc * 18;
+        document.body.style.backgroundColor = "hsl(" + odcien + ", 70%, 88%)";
+    }
+
+    suwak.addEventListener("input", aktualizujWartosc);
+    reset.addEventListener("click", () => {
+        suwak.value = wartoscPoczatkowa;
+        aktualizujWartosc();
+    });
+    aktualizujWartosc();
+</script>
+
+</body>
+</html>
